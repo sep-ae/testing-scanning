@@ -1,6 +1,6 @@
 # app/routes/posts.py
 import sqlite3, subprocess
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, redirect, render_template_string
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models.post import Post
@@ -58,11 +58,13 @@ def delete_post(id):
     return jsonify({"message": "Post dihapus"})
 
 
+# ============ VULNERABLE: SQL INJECTION ============
+# Vulnerable: raw string format langsung ke SQL query
+
 @posts_bp.route('/search', methods=['GET'])
 def search_vuln():
     q = request.args.get('q', '')
     try:
-        # Pakai db.engine — pasti ketemu DB yang sama
         with db.engine.connect() as conn:
             from sqlalchemy import text
             rows = conn.execute(
@@ -75,13 +77,47 @@ def search_vuln():
     except Exception as e:
         return jsonify({"error": str(e), "query": q}), 500
 
+
+# ============ VULNERABLE: OPEN REDIRECT ============
+# Vulnerable: tidak validasi URL, langsung redirect ke next param
+# Ini HTTP 302 redirect yang beneran — bisa dideteksi checker
+
 @posts_bp.route('/redirect', methods=['GET'])
 def open_redirect():
     next_url = request.args.get('next', '/')
-    return jsonify({
-        "redirect": next_url,
-        "message": "Redirecting..."
-    })
+    # ❌ Langsung redirect tanpa validasi domain
+    # Harusnya: cek apakah next_url domain sama dengan app domain
+    return redirect(next_url, code=302)
+
+
+# ============ VULNERABLE: REFLECTED XSS ============
+# Vulnerable: input langsung di-render ke HTML tanpa sanitasi
+# Endpoint ini simulasi fitur "preview komentar" atau "halaman error custom"
+
+@posts_bp.route('/preview', methods=['GET'])
+def preview_vuln():
+    # Simulasi: user bisa preview teks sebelum submit komentar
+    text = request.args.get('text', '')
+    name = request.args.get('name', 'Anonymous')
+
+    # ❌ Langsung inject ke HTML tanpa escape — Reflected XSS
+    html = f"""<!DOCTYPE html>
+<html>
+<head><title>Preview Komentar</title></head>
+<body>
+    <h2>Preview Komentar</h2>
+    <div class="comment">
+        <strong>{name}</strong>
+        <p>{text}</p>
+    </div>
+    <a href="/">Kembali</a>
+</body>
+</html>"""
+    return html, 200, {'Content-Type': 'text/html'}
+
+
+# ============ VULNERABLE: COMMAND INJECTION ============
+# Vulnerable: shell=True + input langsung tanpa sanitasi
 
 @posts_bp.route('/ping', methods=['GET'])
 def ping_vuln():
