@@ -50,13 +50,6 @@
           </div>
         </div>
 
-        <!-- Error -->
-        <div v-if="error"
-             class="mt-3 px-3 py-2 rounded-lg text-xs text-red-600"
-             style="background: rgba(239,68,68,0.08);">
-          ⚠️ {{ error }}
-        </div>
-
         <!-- Button -->
         <button @click="doRegister" :disabled="loading"
           class="w-full mt-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200"
@@ -78,28 +71,30 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { toast } from 'vue-sonner'
 
 const username = ref('')
 const email    = ref('')
 const password = ref('')
-const error    = ref('')
 const success  = ref(false)
 const loading  = ref(false)
 const auth     = useAuthStore()
+const router   = useRouter()
 
 async function doRegister() {
   if (!username.value || !email.value || !password.value) {
-    error.value = 'Semua field wajib diisi'
+    toast.error('Semua field wajib diisi')
     return
   }
   loading.value = true
-  error.value   = ''
   try {
     await auth.register(username.value, email.value, password.value)
     success.value = true
+    toast.success('Registrasi berhasil! Silakan login.')
   } catch (e) {
-    error.value = e.response?.data?.message || 'Registrasi gagal'
+    toast.error(e.response?.data?.message || 'Registrasi gagal')
   } finally {
     loading.value = false
   }

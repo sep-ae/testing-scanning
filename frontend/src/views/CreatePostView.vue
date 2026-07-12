@@ -40,13 +40,6 @@
         </div>
       </div>
 
-      <!-- Error -->
-      <div v-if="error"
-           class="mt-4 px-3 py-2 rounded-lg text-xs text-red-600"
-           style="background: rgba(239,68,68,0.08);">
-        ⚠️ {{ error }}
-      </div>
-
       <!-- Actions -->
       <div class="flex gap-3 mt-6">
         <button @click="$router.back()"
@@ -73,24 +66,24 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
+import { toast } from 'vue-sonner'
 
 const title   = ref('')
 const content = ref('')
-const error   = ref('')
 const loading = ref(false)
 const router  = useRouter()
 
 async function submit() {
-  if (!title.value.trim())   { error.value = 'Judul wajib diisi!'; return }
-  if (!content.value.trim()) { error.value = 'Konten wajib diisi!'; return }
+  if (!title.value.trim())   { toast.error('Judul wajib diisi!'); return }
+  if (!content.value.trim()) { toast.error('Konten wajib diisi!'); return }
 
   loading.value = true
-  error.value   = ''
   try {
     await api.post('/posts/', { title: title.value, content: content.value })
+    toast.success('Post berhasil dipublish!')
     router.push('/dashboard')
   } catch (e) {
-    error.value = e.response?.data?.message || 'Gagal mempublish post'
+    toast.error(e.response?.data?.message || 'Gagal mempublish post')
   } finally {
     loading.value = false
   }

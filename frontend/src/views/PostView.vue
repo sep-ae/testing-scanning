@@ -164,6 +164,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import { toast } from 'vue-sonner'
 
 const route       = useRoute()
 const router      = useRouter()
@@ -203,8 +204,9 @@ async function submitComment() {
     await api.post(`/posts/${route.params.id}/comments`, { content: newComment.value })
     newComment.value = ''
     await loadComments()
+    toast.success('Komentar berhasil diposting!')
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to post comment')
+    toast.error(e.response?.data?.message || 'Gagal memposting komentar')
   } finally {
     submitting.value = false
   }
@@ -214,8 +216,9 @@ async function deleteComment(commentId) {
   try {
     await api.delete(`/posts/comments/${commentId}`)
     comments.value = comments.value.filter(c => c.id !== commentId)
+    toast.success('Komentar dihapus')
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to delete comment')
+    toast.error(e.response?.data?.message || 'Gagal menghapus komentar')
   }
 }
 
@@ -227,7 +230,12 @@ function formatDate(d) {
 function confirmDelete() { showConfirm.value = true }
 
 async function deletePost() {
-  await api.delete(`/posts/${route.params.id}`)
-  router.push('/posts')
+  try {
+    await api.delete(`/posts/${route.params.id}`)
+    toast.success('Post dihapus')
+    router.push('/posts')
+  } catch (e) {
+    toast.error('Gagal menghapus post')
+  }
 }
 </script>

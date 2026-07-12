@@ -12,5 +12,5 @@ class User(db.Model):
     role       = db.Column(db.String(20), default='user')  # user | admin
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    posts    = db.relationship('Post', backref='author', lazy=True)
-    comments = db.relationship('Comment', backref='commenter', lazy=True)
+    posts    = db.relationship('Post', backref='author', lazy=True, cascade='all, delete-orphan')
+    comments = db.relationship('Comment', backref='commenter', lazy=True, cascade='all, delete-orphan')

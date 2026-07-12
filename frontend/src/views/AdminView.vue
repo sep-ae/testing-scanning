@@ -86,7 +86,7 @@
                 : 'color: #3b82f6; border-color: rgba(59,130,246,0.2); background: rgba(59,130,246,0.05);'">
               {{ user.role === 'admin' ? 'Demote' : 'Promote' }}
             </button>
-            <button @click="deleteUser(user.id)"
+            <button @click="promptDeleteUser(user.id)"
               class="px-3 py-1.5 rounded-lg text-xs border transition-all"
               style="color: #ef4444; border-color: rgba(239,68,68,0.15); background: rgba(239,68,68,0.04);">
               Delete
@@ -117,7 +117,7 @@
               <p class="text-xs text-gray-400 mt-0.5">by {{ post.author }} · {{ post.comment_count }} comments · {{ formatDate(post.created_at) }}</p>
             </div>
           </div>
-          <button @click="deletePost(post.id)"
+          <button @click="promptDeletePost(post.id)"
             class="px-3 py-1.5 rounded-lg text-xs border transition-all ml-4 shrink-0"
             style="color: #ef4444; border-color: rgba(239,68,68,0.15); background: rgba(239,68,68,0.04);">
             Delete
@@ -146,7 +146,7 @@
             <p class="text-xs text-gray-500 truncate max-w-lg">{{ stripHtml(comment.content) }}</p>
             <p class="text-xs text-gray-300 mt-0.5">{{ formatDate(comment.created_at) }}</p>
           </div>
-          <button @click="deleteComment(comment.id)"
+          <button @click="promptDeleteComment(comment.id)"
             class="px-3 py-1.5 rounded-lg text-xs border transition-all ml-4 shrink-0"
             style="color: #ef4444; border-color: rgba(239,68,68,0.15); background: rgba(239,68,68,0.04);">
             Delete
@@ -155,18 +155,51 @@
       </div>
 
     </div>
+
+    <!-- Confirm Action Modal -->
+    <div v-if="confirmModal.show"
+         class="fixed inset-0 z-50 flex items-center justify-center"
+         style="background: rgba(0,0,0,0.3); backdrop-filter: blur(4px);">
+      <div class="rounded-2xl p-6 w-80 border"
+           style="background: rgba(255,255,255,0.95); border-color: rgba(255,255,255,0.9); box-shadow: 0 20px 60px rgba(0,0,0,0.15);">
+        <div class="text-3xl text-center mb-3">⚠️</div>
+        <h3 class="font-semibold text-gray-800 text-center mb-1">{{ confirmModal.title }}</h3>
+        <p class="text-xs text-gray-400 text-center mb-5">{{ confirmModal.message }}</p>
+        <div class="flex gap-2">
+          <button @click="confirmModal.show = false"
+            class="flex-1 py-2 rounded-xl text-sm border text-gray-500 transition-all"
+            style="border-color: rgba(0,0,0,0.1);">
+            Batal
+          </button>
+          <button @click="executeConfirmAction"
+            class="flex-1 py-2 rounded-xl text-sm font-medium text-white transition-all"
+            style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            Hapus
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'
+import { toast } from 'vue-sonner'
 
 const activeTab   = ref('users')
 const stats       = ref({ total_users: 0, total_posts: 0, total_comments: 0 })
 const users       = ref([])
 const posts       = ref([])
 const allComments = ref([])
+
+const confirmModal = ref({
+  show: false,
+  title: '',
+  message: '',
+  action: null
+})
 
 onMounted(() => {
   loadAll()
@@ -185,7 +218,7 @@ async function loadAll() {
     posts.value       = p.data
     allComments.value = c.data
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to load admin data')
+    toast.error(e.response?.data?.message || 'Gagal memuat data admin')
   }
 }
 
@@ -196,28 +229,60 @@ async function toggleRole(user) {
     user.role = newRole
     const s = await api.get('/admin/stats')
     stats.value = s.data
+    toast.success(`Berhasil mengubah role ${user.username} menjadi ${newRole}`)
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to update role')
+    toast.error(e.response?.data?.message || 'Gagal mengubah role')
+  }
+}
+
+function promptDeleteUser(id) {
+  confirmModal.value = {
+    show: true,
+    title: 'Hapus User?',
+    message: 'User dan semua kontennya (post & komentar) akan terhapus permanen.',
+    action: () => deleteUser(id)
   }
 }
 
 async function deleteUser(id) {
-  if (!confirm('Delete this user and all their content?')) return
   try {
     await api.delete(`/admin/users/${id}`)
     await loadAll()
+    toast.success('User berhasil dihapus')
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to delete user')
+    toast.error(e.response?.data?.message || 'Gagal menghapus user')
+  } finally {
+    confirmModal.value.show = false
+  }
+}
+
+function promptDeletePost(id) {
+  confirmModal.value = {
+    show: true,
+    title: 'Hapus Post?',
+    message: 'Post ini akan terhapus secara permanen.',
+    action: () => deletePost(id)
   }
 }
 
 async function deletePost(id) {
-  if (!confirm('Delete this post?')) return
   try {
     await api.delete(`/admin/posts/${id}`)
     await loadAll()
+    toast.success('Post berhasil dihapus')
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to delete post')
+    toast.error(e.response?.data?.message || 'Gagal menghapus post')
+  } finally {
+    confirmModal.value.show = false
+  }
+}
+
+function promptDeleteComment(id) {
+  confirmModal.value = {
+    show: true,
+    title: 'Hapus Komentar?',
+    message: 'Komentar ini akan terhapus secara permanen.',
+    action: () => deleteComment(id)
   }
 }
 
@@ -225,8 +290,17 @@ async function deleteComment(id) {
   try {
     await api.delete(`/admin/comments/${id}`)
     await loadAll()
+    toast.success('Komentar berhasil dihapus')
   } catch (e) {
-    alert(e.response?.data?.message || 'Failed to delete comment')
+    toast.error(e.response?.data?.message || 'Gagal menghapus komentar')
+  } finally {
+    confirmModal.value.show = false
+  }
+}
+
+function executeConfirmAction() {
+  if (confirmModal.value.action) {
+    confirmModal.value.action()
   }
 }
 

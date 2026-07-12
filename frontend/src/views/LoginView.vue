@@ -34,13 +34,6 @@
         </div>
       </div>
 
-      <!-- Error -->
-      <div v-if="error"
-           class="mt-3 px-3 py-2 rounded-lg text-xs text-red-600"
-           style="background: rgba(239,68,68,0.08);">
-        ⚠️ {{ error }}
-      </div>
-
       <!-- Button -->
       <button @click="doLogin" :disabled="loading"
         class="w-full mt-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200"
@@ -62,10 +55,10 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { toast } from 'vue-sonner'
 
 const email    = ref('')
 const password = ref('')
-const error    = ref('')
 const loading  = ref(false)
 const router   = useRouter()
 const route    = useRoute()
@@ -73,17 +66,17 @@ const auth     = useAuthStore()
 
 async function doLogin() {
   if (!email.value || !password.value) {
-    error.value = 'Email dan password wajib diisi'
+    toast.error('Email dan password wajib diisi')
     return
   }
   loading.value = true
-  error.value   = ''
   try {
     await auth.login(email.value, password.value)
+    toast.success('Berhasil login!')
     const next = route.query.next || '/'
     router.push(next)
   } catch {
-    error.value = 'Email atau password salah'
+    toast.error('Email atau password salah')
   } finally {
     loading.value = false
   }
