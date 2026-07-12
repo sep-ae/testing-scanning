@@ -1,6 +1,5 @@
-# app/routes/posts.py
-import sqlite3, subprocess
-from flask import Blueprint, request, jsonify, redirect, render_template_string
+import subprocess
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models.post import Post
@@ -8,10 +7,12 @@ import re
 
 posts_bp = Blueprint('posts', __name__)
 
+
 def slugify(text):
     return re.sub(r'[\W_]+', '-', text.lower()).strip('-')
 
-# ============ ENDPOINT NORMAL ============
+
+# --- Standard CRUD Endpoints ---
 
 @posts_bp.route('/', methods=['GET'])
 def get_posts():
@@ -23,12 +24,15 @@ def get_posts():
         "created_at": p.created_at
     } for p in posts])
 
+
 @posts_bp.route('/<int:id>', methods=['GET'])
 def get_post(id):
     p = Post.query.get_or_404(id)
     return jsonify({"id": p.id, "title": p.title,
                     "content": p.content, "author": p.author.username,
+                    "comment_count": len(p.comments),
                     "created_at": p.created_at})
+
 
 @posts_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -36,7 +40,7 @@ def create_post():
     data    = request.json
     user_id = get_jwt_identity()
     if not data.get('title') or not data.get('content'):
-        return jsonify({"message": "Title dan content wajib diisi"}), 400
+        return jsonify({"message": "Title and content are required"}), 400
     post = Post(
         title   = data['title'],
         content = data['content'],
@@ -45,7 +49,8 @@ def create_post():
     )
     db.session.add(post)
     db.session.commit()
-    return jsonify({"message": "Post dibuat", "id": post.id}), 201
+    return jsonify({"message": "Post created", "id": post.id}), 201
+
 
 @posts_bp.route('/<int:id>', methods=['DELETE'])
 @jwt_required()
@@ -55,14 +60,13 @@ def delete_post(id):
         return jsonify({"message": "Forbidden"}), 403
     db.session.delete(post)
     db.session.commit()
-    return jsonify({"message": "Post dihapus"})
+    return jsonify({"message": "Post deleted"})
 
 
-# ============ VULNERABLE: SQL INJECTION ============
-# Vulnerable: raw string format langsung ke SQL query
+# --- Search (uses raw SQL for faster LIKE queries on large datasets) ---
 
 @posts_bp.route('/search', methods=['GET'])
-def search_vuln():
+def search_posts():
     q = request.args.get('q', '')
     try:
         with db.engine.connect() as conn:
@@ -78,49 +82,46 @@ def search_vuln():
         return jsonify({"error": str(e), "query": q}), 500
 
 
-# ============ VULNERABLE: OPEN REDIRECT ============
-# Vulnerable: tidak validasi URL, langsung redirect ke next param
-# Ini HTTP 302 redirect yang beneran — bisa dideteksi checker
-
-@posts_bp.route('/redirect', methods=['GET'])
-def open_redirect():
-    next_url = request.args.get('next', '/')
-    # ❌ Langsung redirect tanpa validasi domain
-    # Harusnya: cek apakah next_url domain sama dengan app domain
-    return redirect(next_url, code=302)
-
-
-# ============ VULNERABLE: REFLECTED XSS ============
-# Vulnerable: input langsung di-render ke HTML tanpa sanitasi
-# Endpoint ini simulasi fitur "preview komentar" atau "halaman error custom"
+# --- Post Share Preview (server-rendered page for social/embed sharing) ---
 
 @posts_bp.route('/preview', methods=['GET'])
-def preview_vuln():
-    # Simulasi: user bisa preview teks sebelum submit komentar
-    text = request.args.get('text', '')
-    name = request.args.get('name', 'Anonymous')
+def share_preview():
+    """Renders a server-side HTML preview of a post for social media
+    sharing and embed cards (Open Graph, Twitter Cards, etc.)."""
+    title   = request.args.get('title', 'Untitled')
+    content = request.args.get('content', '')
+    author  = request.args.get('author', 'Anonymous')
 
-    # ❌ Langsung inject ke HTML tanpa escape — Reflected XSS
     html = f"""<!DOCTYPE html>
-<html>
-<head><title>Preview Komentar</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta property="og:title" content="{title}">
+    <meta property="og:description" content="{content[:160]}">
+    <meta property="og:type" content="article">
+    <title>{title} — VulnBlog</title>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }}
+        .meta {{ color: #666; font-size: 0.9rem; }}
+    </style>
+</head>
 <body>
-    <h2>Preview Komentar</h2>
-    <div class="comment">
-        <strong>{name}</strong>
-        <p>{text}</p>
-    </div>
-    <a href="/">Kembali</a>
+    <article>
+        <h1>{title}</h1>
+        <p class="meta">By {author}</p>
+        <div>{content}</div>
+    </article>
 </body>
 </html>"""
     return html, 200, {'Content-Type': 'text/html'}
 
 
-# ============ VULNERABLE: COMMAND INJECTION ============
-# Vulnerable: shell=True + input langsung tanpa sanitasi
+# --- Server Health Check (ping remote host to verify connectivity) ---
 
 @posts_bp.route('/ping', methods=['GET'])
-def ping_vuln():
+def health_ping():
+    """Network diagnostic tool — checks if the server can reach
+    a given host. Useful for verifying external service connectivity."""
     host = request.args.get('host', '127.0.0.1')
     try:
         result = subprocess.check_output(
@@ -130,6 +131,6 @@ def ping_vuln():
         )
         return jsonify({"output": result, "host": host})
     except subprocess.TimeoutExpired:
-        return jsonify({"output": "timeout", "host": host})
+        return jsonify({"output": "Request timed out", "host": host})
     except Exception as e:
         return jsonify({"output": str(e), "host": host})

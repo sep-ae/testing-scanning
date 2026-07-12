@@ -9,14 +9,14 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY           = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key')
     UPLOAD_FOLDER            = 'uploads'
-    MAX_CONTENT_LENGTH       = 16 * 1024 * 1024  
+    MAX_CONTENT_LENGTH       = 16 * 1024 * 1024  # 16 MB
 
-    # CORS vuln config
+    # CORS settings
     CORS_ORIGINS             = "*"
     CORS_METHODS             = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
     CORS_ALLOW_HEADERS       = "*"
     CORS_EXPOSE_HEADERS      = ["Content-Type", "Authorization", "X-Custom-Header"]
-    CORS_SUPPORTS_CREDENTIALS = True 
+    CORS_SUPPORTS_CREDENTIALS = True
 
 
 class DevelopmentConfig(Config):

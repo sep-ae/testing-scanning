@@ -19,13 +19,21 @@
           Posts
         </RouterLink>
 
-        <!-- Sudah login -->
+        <!-- Logged in -->
         <template v-if="auth.isLoggedIn">
           <RouterLink to="/dashboard"
             class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200"
             style="color: #374151;"
             active-class="!text-blue-600 bg-blue-50/80">
             Dashboard
+          </RouterLink>
+
+          <!-- Admin link -->
+          <RouterLink v-if="auth.isAdmin" to="/admin"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200"
+            style="color: #ef4444;"
+            active-class="!text-red-600 bg-red-50/80">
+            Admin
           </RouterLink>
 
           <RouterLink to="/create"
@@ -46,7 +54,7 @@
                  background: rgba(243,244,246,0.6);
                  border-color: rgba(209,213,219,0.5);
                ">
-            <!-- Avatar inisial -->
+            <!-- Avatar -->
             <div class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white"
                  style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">
               {{ auth.user?.username?.charAt(0).toUpperCase() }}
@@ -64,7 +72,7 @@
           </div>
         </template>
 
-        <!-- Belum login -->
+        <!-- Not logged in -->
         <template v-else>
           <RouterLink to="/login"
             class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200"

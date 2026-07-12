@@ -1,6 +1,6 @@
-# app/models/post.py
 from ..extensions import db
 from datetime import datetime
+
 
 class Post(db.Model):
     __tablename__ = 'posts'
@@ -13,3 +13,5 @@ class Post(db.Model):
     user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    comments = db.relationship('Comment', backref='post', lazy=True, cascade='all, delete-orphan')

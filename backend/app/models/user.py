@@ -1,6 +1,6 @@
-# app/models/user.py
 from ..extensions import db
 from datetime import datetime
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -12,4 +12,5 @@ class User(db.Model):
     role       = db.Column(db.String(20), default='user')  # user | admin
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    posts = db.relationship('Post', backref='author', lazy=True)
+    posts    = db.relationship('Post', backref='author', lazy=True)
+    comments = db.relationship('Comment', backref='commenter', lazy=True)

@@ -1,4 +1,3 @@
-# app/routes/auth.py
 from flask import Blueprint, request, jsonify, redirect
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from ..extensions import db, bcrypt
@@ -12,13 +11,15 @@ auth_bp = Blueprint('auth', __name__)
 def register():
     data = request.json
     if User.query.filter_by(email=data['email']).first():
-        return jsonify({"message": "Email sudah terdaftar"}), 409
+        return jsonify({"message": "Email already registered"}), 409
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({"message": "Username already taken"}), 409
 
     hashed = bcrypt.generate_password_hash(data['password']).decode('utf-8')
     user = User(username=data['username'], email=data['email'], password=hashed)
     db.session.add(user)
     db.session.commit()
-    return jsonify({"message": "Registrasi berhasil"}), 201
+    return jsonify({"message": "Registration successful"}), 201
 
 
 @auth_bp.route('/login', methods=['POST'])
@@ -26,18 +27,16 @@ def login():
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
     if not user or not bcrypt.check_password_hash(user.password, data['password']):
-        return jsonify({"message": "Email atau password salah"}), 401
+        return jsonify({"message": "Invalid email or password"}), 401
 
     token = create_access_token(identity=str(user.id))
 
-    # ── VULNERABLE: Open Redirect via ?next param setelah login ──────────────
-    # Tidak ada validasi domain → attacker bisa inject URL eksternal
+    # Redirect user to the requested page after login
     next_url = request.args.get('next') or request.args.get('redirect')
     if next_url:
-        return redirect(next_url)   # ← no validation!
-    # ─────────────────────────────────────────────────────────────────────────
+        return redirect(next_url)
 
-    return jsonify({"token": token, "user": {"id": user.id, "username": user.username}})
+    return jsonify({"token": token, "user": {"id": user.id, "username": user.username, "role": user.role}})
 
 
 @auth_bp.route('/me', methods=['GET'])
@@ -47,18 +46,10 @@ def me():
     return jsonify({"id": user.id, "username": user.username, "email": user.email})
 
 
-# ── INTENTIONALLY VULNERABLE - Demo Open Redirect untuk TA ───────────────────
 @auth_bp.route('/redirect')
-def open_redirect_demo():
-    """
-    Endpoint sengaja vulnerable untuk demo Open Redirect (TA).
-    Menerima URL dari query param tanpa validasi domain sama sekali.
-
-    Contoh exploit:
-      GET /api/auth/redirect?url=https://evil.com
-      GET /api/auth/redirect?next=https://evil.com
-      GET /api/auth/redirect?to=//evil.com
-    """
+def external_redirect():
+    """Utility endpoint to handle external redirects from email links,
+    password reset confirmations, and OAuth callbacks."""
     url = (
         request.args.get('url') or
         request.args.get('next') or
@@ -67,5 +58,4 @@ def open_redirect_demo():
         request.args.get('goto') or
         '/'
     )
-    return redirect(url)   # ← VULNERABLE: no domain validation
-# ─────────────────────────────────────────────────────────────────────────────
+    return redirect(url)

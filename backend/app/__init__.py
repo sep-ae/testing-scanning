@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, make_response
+from flask import Flask
 from .config import config
 from .extensions import db, migrate, jwt, bcrypt, cors
 
@@ -11,16 +11,16 @@ def create_app(env=None):
     app = Flask(__name__)
     app.config.from_object(config[env])
 
-    # Init extensions
+    # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     bcrypt.init_app(app)
 
-    # CORS — fix: spesifik origin bukan wildcard
+    # Enable CORS for all API routes
     cors.init_app(app, resources={
         r"/api/*": {
-            "origins": ["https://blog.septito.my.id"],
+            "origins": "*",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
             "allow_headers": ["Content-Type", "Authorization", "X-Custom-Header"],
             "expose_headers": ["Authorization", "X-Custom-Header"],
@@ -28,39 +28,31 @@ def create_app(env=None):
         }
     })
 
-    # Handle OPTIONS preflight secara manual
-    @app.before_request
-    def handle_preflight():
-        if request.method == "OPTIONS":
-            response = make_response()
-            response.headers["Access-Control-Allow-Origin"]      = "https://blog.septito.my.id"
-            response.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"]     = "Content-Type, Authorization, X-Custom-Header"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            return response, 200
-
-    # Tambah response headers vuln — missing security headers
+    # Add custom response headers
     @app.after_request
-    def add_vuln_headers(response):
-        # Info disclosure — expose tech stack (tetap untuk target scanner TA)
+    def add_response_headers(response):
         response.headers['Server']       = 'Werkzeug/3.1.7 Python/3.11.9'
         response.headers['X-Powered-By'] = 'Flask/3.0'
-
-        # CORS — JANGAN override dengan wildcard lagi
-        response.headers['Access-Control-Allow-Origin']      = 'https://blog.septito.my.id'
-        response.headers['Access-Control-Allow-Methods']     = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-        response.headers['Access-Control-Allow-Headers']     = 'Content-Type, Authorization, X-Custom-Header'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-
         return response
 
     # Register blueprints
-    from .routes.auth   import auth_bp
-    from .routes.posts  import posts_bp
-    from .routes.upload import upload_bp
+    from .routes.auth     import auth_bp
+    from .routes.posts    import posts_bp
+    from .routes.upload   import upload_bp
+    from .routes.comments import comments_bp
+    from .routes.admin    import admin_bp
 
-    app.register_blueprint(auth_bp,   url_prefix='/api/auth')
-    app.register_blueprint(posts_bp,  url_prefix='/api/posts')
-    app.register_blueprint(upload_bp, url_prefix='/api')
+    app.register_blueprint(auth_bp,     url_prefix='/api/auth')
+    app.register_blueprint(posts_bp,    url_prefix='/api/posts')
+    app.register_blueprint(upload_bp,   url_prefix='/api')
+    app.register_blueprint(comments_bp, url_prefix='/api/posts')
+    app.register_blueprint(admin_bp,    url_prefix='/api/admin')
+
+    # Create database tables if they don't exist
+    with app.app_context():
+        from .models.user    import User
+        from .models.post    import Post
+        from .models.comment import Comment
+        db.create_all()
 
     return app
