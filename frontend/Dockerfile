@@ -8,10 +8,7 @@ RUN npm ci
 
 COPY . .
 
-# API URL ke backend production
-ARG VITE_API_URL=http://localhost:5000/api
-ENV VITE_API_URL=$VITE_API_URL
-RUN echo "VITE_API_URL=${VITE_API_URL}" > .env.production
+# Removed hardcoded VITE_API_URL override to use actual .env file
 RUN npm run build
 
 # Stage 2 — Serve pakai Nginx
